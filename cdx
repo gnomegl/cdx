@@ -1,0 +1,70 @@
+#!/bin/bash
+
+show_usage() {
+  cat <<EOF
+Usage: cdx [-acdflo] <domain>
+Options:
+  -a    Show archive URLs instead of original URLs
+  -c    Match domain and all subdomains (*.domain.com)
+  -d    Show only the original URL
+  -f    Filter by MIME type (e.g., -f text/html)
+  -l    Limit number of results (e.g., -l 100)
+  -o    Output format: json, csv (default: text)
+Examples:
+  cdx example.com
+  cdx -a -c -l 50 example.com
+  cdx -f application/pdf example.com
+EOF
+  exit 1
+}
+
+show_archive=false
+domain_only=false
+collapse=""
+filter=""
+limit=""
+output="text"
+
+while getopts "acdf:l:o:h" opt; do
+  case $opt in
+  a) show_archive=true ;;
+  c) collapse="&collapse=urlkey" ;;
+  d) domain_only=true ;;
+  f) filter="&filter=mimetype:$OPTARG" ;;
+  l) limit="&limit=$OPTARG" ;;
+  o) output="$OPTARG" ;;
+  h | *) show_usage ;;
+  esac
+done
+
+shift $((OPTIND - 1))
+[[ $# -eq 0 ]] && show_usage
+
+domain="${1#http://}"
+domain="${domain#https://}"
+domain="${domain%/}"
+
+base_url="http://web.archive.org/cdx/search/cdx?url=${domain}/*&output=${output}"
+if [[ "$domain_only" == true ]]; then
+  fields="&fl=original"
+else
+  fields="&fl=timestamp,original,mimetype,statuscode,digest"
+fi
+
+response=$(curl -sS "${base_url}${fields}${collapse}${filter}${limit}" 2>&1)
+[[ $? -ne 0 ]] && {
+  echo "Error: Failed to fetch CDX data" >&2
+  exit 1
+}
+[[ -z "$response" ]] && {
+  echo "No results found for ${domain}" >&2
+  exit 0
+}
+
+if [[ "$domain_only" == true ]]; then
+  echo "$response"
+elif [[ "$show_archive" == true ]]; then
+  echo "$response" | awk '{print "http://web.archive.org/web/" $1 "/" $2}'
+else
+  echo "$response" | cut -f2
+fi
