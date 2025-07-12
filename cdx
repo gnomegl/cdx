@@ -10,10 +10,12 @@ Options:
   -f    Filter by MIME type (e.g., -f text/html)
   -l    Limit number of results (e.g., -l 100)
   -o    Output format: json, csv (default: text)
+  -r    Filter URLs by regex pattern (e.g., -r '\.pdf$')
 Examples:
   cdx example.com
   cdx -a -c -l 50 example.com
   cdx -f application/pdf example.com
+  cdx -r '\.pdf$' example.com
 EOF
   exit 1
 }
@@ -24,8 +26,9 @@ collapse=""
 filter=""
 limit=""
 output="text"
+regex_pattern=""
 
-while getopts "acdf:l:o:h" opt; do
+while getopts "acdf:l:o:r:h" opt; do
   case $opt in
   a) show_archive=true ;;
   c) collapse="&collapse=urlkey" ;;
@@ -33,6 +36,7 @@ while getopts "acdf:l:o:h" opt; do
   f) filter="&filter=mimetype:$OPTARG" ;;
   l) limit="&limit=$OPTARG" ;;
   o) output="$OPTARG" ;;
+  r) regex_pattern="$OPTARG" ;;
   h | *) show_usage ;;
   esac
 done
@@ -60,6 +64,19 @@ response=$(curl -sS "${base_url}${fields}${collapse}${filter}${limit}" 2>&1)
   echo "No results found for ${domain}" >&2
   exit 0
 }
+
+if [[ -n "$regex_pattern" ]]; then
+  if [[ "$domain_only" == true ]]; then
+    response=$(echo "$response" | grep -E "$regex_pattern")
+  else
+    response=$(echo "$response" | grep -E "^[^ ]+ [^ ]*${regex_pattern}")
+  fi
+  
+  [[ -z "$response" ]] && {
+    echo "No results found matching regex pattern: ${regex_pattern}" >&2
+    exit 0
+  }
+fi
 
 if [[ "$domain_only" == true ]]; then
   echo "$response"
