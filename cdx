@@ -79,9 +79,9 @@ if [[ -n "$regex_pattern" ]]; then
 fi
 
 if [[ "$domain_only" == true ]]; then
-  echo "$response"
+  echo "$response" | sort -u
 elif [[ "$show_archive" == true ]]; then
-  echo "$response" | awk '{print "http://web.archive.org/web/" $1 "/" $2}'
+  echo "$response" | awk '{print "http://web.archive.org/web/" $1 "/" $2}' | sort -u
 else
-  echo "$response" | cut -f2
+  echo "$response" | cut -f2 | sort -u
 fi
